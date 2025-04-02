@@ -22,6 +22,7 @@
 #include "Trail.h"
 #include "Variable.h"
 #include "Variable_order.h"
+#include "metrics/Metrics.h"
 
 namespace yaga {
 
@@ -156,6 +157,12 @@ public:
      */
     inline int num_restarts() const { return total_restarts; }
 
+    /** Get number of backtracks
+     *
+     * @return total number of backtracks in the last `check()`
+     */
+    inline int num_backtracks() const { return total_backtracks; }
+
     /** Get total number of generated conflict clauses
      * 
      * @return total number of conflict clauses in the last `check()`
@@ -184,7 +191,7 @@ private:
     std::unique_ptr<Restart> restart_policy;
     std::unique_ptr<Variable_order> variable_order;
     const terms::Term_manager& term_manager;
-    int num_bool_vars = 0;
+    int num_bool_vars = 0;  
 
     using Clause_iterator = std::deque<Clause>::iterator;
     using Clause_range = std::ranges::subrange<Clause_iterator>;
@@ -195,6 +202,8 @@ private:
     int total_learned_clauses = 0;
     int total_restarts = 0;
     int total_decisions = 0;
+    int total_backtracks = 0;
+
 
     // run propagate in theory
     [[nodiscard]] std::vector<Clause> propagate();

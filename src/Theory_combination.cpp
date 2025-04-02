@@ -14,7 +14,7 @@ std::vector<Clause> Theory_combination::propagate(Database& db, Trail& trail)
         {
             auto conflicts = theory->propagate(db, trail);
             if (!conflicts.empty())
-            {
+            {                
                 return conflicts;
             }
         }
@@ -47,7 +47,7 @@ void Theory_combination::on_init(Database& db, Trail& trail)
 void Theory_combination::on_before_backtrack(Database& db, Trail& trail, int level)
 {
     for (auto&& theory : theories())
-    {
+    {   
         theory->on_before_backtrack(db, trail, level);
     }
 }

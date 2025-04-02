@@ -135,7 +135,15 @@ std::vector<Clause> Bool_theory::propagate(Database& db, Trail& trail)
         if (reason != nullptr && !model.is_defined(lit.var().ord()))
         {
             model.set_value(lit.var().ord(), !lit.is_negation());
+#ifdef LOG_ALL
+            Metrics::instance().log_bool_literal_propagation(trail.decision_level(), trail.size(),
+                                                             lit, reason);
+#endif
             trail.propagate(lit.var(), reason, trail.decision_level());
+
+#ifdef LOG_ALL
+            Metrics::instance().log_bool_propagation_success(trail.decision_level(), trail.size());
+#endif
         }
         assert(eval(model, lit) == true);
         // reason clause is a unit clause which implies lit
@@ -145,6 +153,10 @@ std::vector<Clause> Bool_theory::propagate(Database& db, Trail& trail)
 
         if (auto conflict = falsified(trail, model, ~lit))
         {
+#ifdef LOG_ALL
+            Metrics::instance().log_bool_propagation_failure(trail.decision_level(), trail.size(),
+                                                             conflict);
+#endif
             conflicts.push_back(std::move(conflict.value()));
         }
     }
@@ -190,6 +202,10 @@ Bool_theory::falsified([[maybe_unused]] Trail const& trail, Model<bool> const& m
     assert(eval(model, falsified_lit) == false);
 
     auto& watchlist = watched[falsified_lit];
+#ifdef LOG_ALL
+    Metrics::instance().log_bool_watchlist_size(falsified_lit.var().ord(), (int)watchlist.size(),
+                                                trail.decision_level(), trail.size());
+#endif
     for (std::size_t i = 0; i < watchlist.size();)
     {
         auto& watch = watchlist[i];
@@ -218,6 +234,10 @@ Bool_theory::falsified([[maybe_unused]] Trail const& trail, Model<bool> const& m
 
         if (replace_second_watch(model, watch))
         {
+#ifdef LOG_ALL
+            Metrics::instance().log_bool_watchlist_update(clause[1].var().ord(), clause,
+                                                          watch.index);
+#endif
             std::swap(watch, watchlist.back());
             watchlist.pop_back();
         }

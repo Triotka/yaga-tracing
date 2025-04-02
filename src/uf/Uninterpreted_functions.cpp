@@ -40,21 +40,44 @@ Uninterpreted_functions::Uninterpreted_functions(terms::Term_manager const& tm,
 std::vector<Clause> Uninterpreted_functions::propagate(Database&, Trail& trail) {
     std::vector<Clause> result;
 
+#ifdef LOG_ALL
+    Metrics::instance().log_func_propagation_start(trail.decision_level(), trail.size());
+#endif
+
     std::vector<Trail::Assignment> assignments = trail.assigned(trail.decision_level());
     //std::vector<Trail::Assignment> assignments = trail.recent();
     for (Trail::Assignment const& assignment : assignments) {
-
+#ifdef LOG_ALL
+        Metrics::instance().log_func_assignment(assignment.var.ord(), trail.decision_level(),
+                                                trail.size());
+#endif
         for (Assignment_watchlist& w_list : watchlists) {
             if (assignment.var == w_list.get_watched_var()) {
+#ifdef LOG_ALL
+                Metrics::instance().log_func_watch_encountered(
+                    w_list.get_term(), assignment.var.ord(), trail.decision_level(), trail.size());
+#endif
                 w_list.on_assign(trail);
 
                 if (w_list.all_assigned(trail)) {
+#ifdef LOG_ALL
+                    Metrics::instance().log_func_watch_fully_assigned(
+                        w_list.get_term(), trail.decision_level(), trail.size());
+#endif
                     std::vector<Clause> function_conflict = add_function_value(w_list.get_term(), trail);
+#ifdef LOG_ALL
+                    Metrics::instance().log_func_conflict_encountered(
+                        w_list.get_term(), static_cast<int>(function_conflict.size()),
+                        trail.decision_level(), trail.size());
+#endif
                     result.insert(result.end(), function_conflict.begin(), function_conflict.end());
                 }
             }
         }
     }
+#ifdef LOG_ALL
+    Metrics::instance().log_func_propagation_end(trail.decision_level(), trail.size());
+#endif
     return result;
 }
 
@@ -127,6 +150,10 @@ void Uninterpreted_functions::register_application_term(Variable var, terms::ter
             watch_vec.push_back(var_to_watch);
         }
     }
+
+#ifdef LOG_ALL
+    Metrics::instance().log_func_watch_registered(app_term, (int)watch_vec.size());
+#endif
 
     Assignment_watchlist w(app_term, std::move(watch_vec));
     watchlists.push_back(w);
@@ -317,7 +344,6 @@ void Uninterpreted_functions::assert_equality(terms::term_t t, terms::term_t u, 
 // returns: a conflict clause (or more)
 std::vector<Clause> Uninterpreted_functions::add_function_value(terms::term_t t, Trail& trail) {
     assert(term_manager.get_kind(t) == terms::Kind::APP_TERM);
-
     std::vector<terms::var_value_t> argument_values;
     int max_level = 0;
     for (terms::term_t arg_term : term_manager.get_args(t)) {
@@ -361,7 +387,6 @@ std::vector<Clause> Uninterpreted_functions::add_function_value(terms::term_t t,
     }
 
     assert_equality(t, current_app_term, trail, result);
-
     return {result};
 }
 

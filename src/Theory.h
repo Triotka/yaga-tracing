@@ -9,6 +9,7 @@
 #include "Event_listener.h"
 #include "Trail.h"
 #include "Variable.h"
+#include "metrics/Metrics.h"
 
 namespace yaga {
 

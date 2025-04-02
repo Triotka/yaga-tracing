@@ -17,6 +17,7 @@
 #include "Model.h"
 #include "Theory.h"
 #include "Variable_bounds.h"
+#include "metrics/Metrics.h"
 
 namespace yaga {
 

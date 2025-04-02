@@ -12,6 +12,8 @@
 #include "Model.h"
 #include "Theory.h"
 #include "Trail.h"
+#include "metrics/Metrics.h"
+
 
 namespace yaga {
 

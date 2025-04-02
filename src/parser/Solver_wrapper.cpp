@@ -73,6 +73,7 @@ Solver_answer Solver_wrapper::check(std::vector<term_t> const& assertions)
         std::cout << "Learned clauses = " << solver.solver().num_learned_clauses() << "\n";
         std::cout << "Decisions = " << solver.solver().num_decisions() << "\n";
         std::cout << "Restarts = " << solver.solver().num_restarts() << "\n";
+        std::cout << "Backtracks = " << solver.solver().num_backtracks() << "\n";
     }
 
     if (res == Solver::Result::sat)

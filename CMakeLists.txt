@@ -35,7 +35,7 @@ endif ()
 
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 
-add_library(yaga src/lra/Fraction.h src/lra/Rational.h src/lra/Long_fraction.cpp)
+add_library(yaga src/lra/Fraction.h src/lra/Rational.h src/lra/Long_fraction.cpp src/metrics/Metrics.cpp)
 target_link_libraries(yaga PUBLIC GMP::GMP)
 add_executable(test)
 add_executable(sat src/sat_solver.cpp)
@@ -54,3 +54,9 @@ target_compile_features(smt PRIVATE cxx_std_20)
 target_link_libraries(test PRIVATE yaga Catch2::Catch2WithMain)
 target_link_libraries(sat PRIVATE yaga)
 target_link_libraries(smt PRIVATE yaga)
+
+# Enable logging for metrics web application
+# target_compile_definitions(yaga PRIVATE LOG_TRASHING LOG_SHALLOW_BACKTRACKS LOG_BACKTRACK_CLUSTERING)
+# target_compile_definitions(test PRIVATE LOG_TRASHING LOG_SHALLOW_BACKTRACKS LOG_BACKTRACK_CLUSTERING)
+# target_compile_definitions(sat PRIVATE LOG_TRASHING LOG_SHALLOW_BACKTRACKS LOG_BACKTRACK_CLUSTERING)
+# target_compile_definitions(smt PRIVATE LOG_TRASHING LOG_SHALLOW_BACKTRACKS LOG_BACKTRACK_CLUSTERING)

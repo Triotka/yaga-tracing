@@ -10,11 +10,26 @@ Solver::Solver(const terms::Term_manager& tm) : solver_trail(dispatcher), term_m
 
 Solver::Solver() : Solver(terms::Term_manager()) {}
 
-std::vector<Clause> Solver::propagate() { return theory()->propagate(database, solver_trail); }
+std::vector<Clause> Solver::propagate() {
+#ifdef LOG_ALL
+    Metrics::instance().log_core_before_propagation(trail().decision_level(), trail().size(),
+                                                    total_decisions, total_conflicts);
+#endif
+    auto propagation_conflicts = theory()->propagate(database, solver_trail);
+#ifdef LOG_ALL
+    Metrics::instance().log_core_after_propagation(trail().decision_level(), trail().size(),
+                                                   propagation_conflicts);
+#endif
+    return propagation_conflicts;
+}
 
 std::pair<std::vector<Clause>, int> Solver::analyze_conflicts(std::vector<Clause>&& conflicts)
 {
     ++total_conflicts;
+#ifdef LOG_ALL
+    Metrics::instance().log_core_conflict_analysis_start(trail().size(), trail().decision_level(),
+                                                         conflicts);
+#endif
     std::vector<Clause> learned;
     int level = std::numeric_limits<int>::max();
     for (auto&& conflict : conflicts)
@@ -44,6 +59,10 @@ std::pair<std::vector<Clause>, int> Solver::analyze_conflicts(std::vector<Clause
             learned.push_back(std::move(clause));
         }
     }
+#ifdef LOG_ALL
+    Metrics::instance().log_core_conflict_analysis_end(learned.size(), level,
+                                                       trail().decision_level());
+#endif
     return {learned, level};
 }
 
@@ -81,6 +100,12 @@ Solver::Clause_range Solver::learn(std::vector<Clause>&& clauses)
         ++total_learned_clauses;
         // add the clause to database
         auto& learned_ref = db().learn_clause(std::move(clause));
+#ifdef LOG_ALL
+        bool is_learned_ref_sem = is_semantic_split(learned_ref);
+        Metrics::instance().log_core_learned_clause(learned_ref, trail().decision_level(),
+                                                    trail().size(), total_learned_clauses,
+                                                    is_learned_ref_sem);
+#endif
         // trigger events
         dispatcher.on_learned_clause(db(), trail(), learned_ref);
     }
@@ -96,7 +121,12 @@ bool Solver::is_semantic_split(Clause const& clause) const
 
 void Solver::backtrack_with(Clause_range clauses, int level)
 {
+#if defined(LOG_ALL) || defined(LOG_BACKTRACK_CLUSTERING) || defined(LOG_SHALLOW_BACKTRACKS)
+    Metrics::instance().log_core_before_backtrack(trail().decision_level(), trail().size(),
+                                                  total_decisions);
+#endif
     dispatcher.on_before_backtrack(db(), trail(), level);
+    ++total_backtracks;
 
     auto& model = trail().model<bool>(Variable::boolean);
     if (is_semantic_split(clauses[0]))
@@ -124,6 +154,11 @@ void Solver::backtrack_with(Clause_range clauses, int level)
         assert(trail().assigned(level + 1).front().var.type() != Variable::boolean);
 
         trail().backtrack(level);
+
+#ifdef LOG_ALL
+        Metrics::instance().log_core_after_backtrack(trail().decision_level(), trail().size(),
+                                                     true);
+#endif
         // decide one of the literals at the highest decision level
         trail().decide(top_it->var());
         model.set_value(top_it->var().ord(), !top_it->is_negation());
@@ -136,6 +171,10 @@ void Solver::backtrack_with(Clause_range clauses, int level)
 
         trail().backtrack(level);
 
+#if defined(LOG_ALL) || defined(LOG_SHALLOW_BACKTRACKS)
+        Metrics::instance().log_core_after_backtrack(trail().decision_level(), trail().size(),
+                                                     false);
+#endif
         // propagate top level literals from all clauses
         for (auto& clause : clauses)
         {
@@ -154,6 +193,11 @@ void Solver::decide(Variable var)
 {
     ++total_decisions;
     theory()->decide(db(), trail(), var);
+
+#if defined(LOG_ALL) || defined(LOG_TRASHING) || defined(LOG_BACKTRACK_CLUSTERING)
+    Metrics::instance().log_core_decision(var, trail().decision_level(), trail().size(),
+                                          total_decisions, total_backtracks);
+#endif
 }
 
 void Solver::init()
@@ -177,11 +221,14 @@ void Solver::init()
 
 void Solver::restart()
 {
-    dispatcher.on_before_backtrack(db(), trail(), /*decision_level=*/0);
+#ifdef LOG_ALL
+    Metrics::instance().log_core_before_restart(total_restarts, trail().decision_level(),
+                                                trail().size(), total_conflicts);
+#endif
 
+    dispatcher.on_before_backtrack(db(), trail(), /*decision_level=*/0);
     ++total_restarts;
     trail().clear();
-
     dispatcher.on_restart(db(), trail());
 }
 
@@ -196,12 +243,37 @@ Solver::Result Solver::check()
         {
             if (trail().decision_level() == 0)
             {
+#if defined(LOG_ALL) || defined(LOG_TRASHING) || defined(LOG_SHALLOW_BACKTRACKS) ||                \
+    defined(LOG_BACKTRACK_CLUSTERING)
+                Metrics::instance().log_core_search_end(trail().decision_level(), trail().size(),
+                                                        total_conflicts, total_conflict_clauses,
+                                                        total_learned_clauses, total_decisions,
+                                                        total_backtracks);
+
+#endif
+#if defined(LOG_ALL) || defined(LOG_TRASHING) || defined(LOG_BACKTRACK_CLUSTERING) ||               \
+    defined(LOG_SHALLOW_BACKTRACKS)
+                Metrics::instance().close_log_file();
+#endif
+
                 return Result::unsat;
             }
 
             auto [learned, level] = analyze_conflicts(std::move(conflicts));
             if (std::any_of(learned.begin(), learned.end(), [](auto const& clause) { return clause.empty(); }))
             {
+#if defined(LOG_ALL) || defined(LOG_TRASHING) || defined(LOG_SHALLOW_BACKTRACKS) ||                \
+    defined(LOG_BACKTRACK_CLUSTERING)
+                Metrics::instance().log_core_search_end(trail().decision_level(), trail().size(),
+                                                        total_conflicts, total_conflict_clauses,
+                                                        total_learned_clauses, total_decisions,
+                                                        total_backtracks);
+#endif
+#if defined(LOG_ALL) || defined(LOG_TRASHING) || defined(LOG_BACKTRACK_CLUSTERING) ||               \
+    defined(LOG_SHALLOW_BACKTRACKS)
+                Metrics::instance().close_log_file();
+#endif
+
                 return Result::unsat;
             }
 
@@ -220,6 +292,18 @@ Solver::Result Solver::check()
             auto var = pick_variable();
             if (!var)
             {
+#if defined(LOG_ALL) || defined(LOG_TRASHING) || defined(LOG_SHALLOW_BACKTRACKS) ||                \
+    defined(LOG_BACKTRACK_CLUSTERING)
+                Metrics::instance().log_core_search_end(trail().decision_level(), trail().size(),
+                                                        total_conflicts, total_conflict_clauses,
+                                                        total_learned_clauses, total_decisions,
+                                                        total_backtracks);
+#endif
+#if defined(LOG_ALL) || defined(LOG_TRASHING) || defined(LOG_BACKTRACK_CLUSTERING) ||               \
+    defined(LOG_SHALLOW_BACKTRACKS)
+                Metrics::instance().close_log_file();
+#endif
+
                 return Result::sat;
             }
             decide(var.value());

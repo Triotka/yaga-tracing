@@ -59,7 +59,8 @@ public:
 
     // get current decision level
     inline int decision_level() const { return static_cast<int>(trail.size()) - 1; }
-
+    // get current trail size
+    inline int size() const { return static_cast<int>(trail.size());}
     /** Get decision level of a variable
      *
      * @param var queried variable
